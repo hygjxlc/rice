@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.bjdx.rice.business.mapper.ProductMapper">
+    <select id="selectByProductCode" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product where product_code = #{productCode}
+    </select>
+    <select id="query" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product
+        where 1=1
+        <if test="product.productCode != null and product.productCode != ''">
+            and product_code like concat('%',#{product.productCode},'%')
+        </if>
+        <if test="product.productName != null and product.productName != ''">
+            and product_name like concat('%',#{product.productName},'%')
+        </if>
+        <if test="product.productType != null and product.productType != ''">
+            and product_type = #{product.productType}
+        </if>
+        <if test="product.createdBy != null and product.createdBy != ''">
+            and created_by like concat('%',#{product.createdBy},'%')
+        </if>
+        <if test="product.startCreatedTime != null and product.endCreatedTime != null">
+            and created_time between #{product.startCreatedTime} and #{product.endCreatedTime}
+        </if>
+        order by created_time desc
+    </select>
+    <select id="existsByProductCode" resultType="java.lang.Boolean">
+        select exists(select 1 from product where product_code = #{productCode})
+    </select>
+
+    <select id="selectProductCodesIn" resultType="string">
+        SELECT product_code FROM product WHERE product_code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+    <select id="getAllProducts" resultType="com.bjdx.rice.admin.dto.DropDownDTO">
+        select product_name as label, id  as value FROM product
+        where product_name like concat('%',#{name},'%')
+    </select>
+    <select id="getProductByName" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product
+                 where product_name like concat('%',#{productName},'%')
+                     or product_code like concat('%',#{productName},'%')
+        limit 1
+    </select>
+    <select id="getProductsByNameSubstring" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product
+                 where product_name like concat('%',#{productName},'%')
+        order by product_name
+    </select>
+    <select id="getProductByExactName" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product
+                 where product_name = #{productName}
+        limit 1
+    </select>
+    <select id="getPrice" resultType="java.math.BigDecimal">
+        select price from product where id = #{productId}
+    </select>
+    <select id="getIdByName" resultType="java.lang.Long">
+        select id from product where product_name = #{productName}
+        order by created_time desc
+        limit 1
+    </select>
+    <!-- 根据多个商品名称批量查询最新ID -->
+    <select id="getIdsByNames" resultType="map">
+        SELECT p.id, p.product_name as productName
+        FROM product p
+        INNER JOIN (
+        SELECT product_name, MAX(created_time) as max_time
+        FROM product
+        WHERE product_name IN
+        <foreach collection="productNames" item="name" open="(" separator="," close=")">
+            #{name}
+        </foreach>
+        GROUP BY product_name
+        ) latest ON p.product_name = latest.product_name AND p.created_time = latest.max_time
+    </select>
+
+    <!-- 批量更新商品信息 -->
+    <update id="updateBatch">
+        UPDATE product
+        SET
+        product_name = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.productName}
+        </foreach>
+        END,
+        product_type = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.productType}
+        </foreach>
+        END,
+        unit = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.unit}
+        </foreach>
+        END,
+        price = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.price}
+        </foreach>
+        END,
+        brand = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.brand}
+        </foreach>
+        END,
+        specification = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.specification}
+        </foreach>
+        END,
+        indicator_desc = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.indicatorDesc}
+        </foreach>
+        END,
+        remarks = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.remarks}
+        </foreach>
+        END,
+        updated_by = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.updatedBy}
+        </foreach>
+        END,
+        updated_time = CASE product_code
+        <foreach collection="list" item="p">
+            WHEN #{p.productCode} THEN #{p.updatedTime}
+        </foreach>
+        END
+        WHERE product_code IN
+        <foreach collection="list" item="p" open="(" separator="," close=")">
+            #{p.productCode}
+        </foreach>
+    </update>
+
+
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product (
+        product_code, product_name, product_type, unit, price,
+        brand, specification, indicator_desc,
+        created_by, created_time, updated_by, updated_time
+        ) VALUES
+        <foreach collection="list" item="p" separator=",">
+            (
+            #{p.productCode}, #{p.productName}, #{p.productType}, #{p.unit}, #{p.price},
+            #{p.brand}, #{p.specification}, #{p.indicatorDesc},
+            #{p.createdBy}, #{p.createdTime}, #{p.updatedBy}, #{p.updatedTime}
+            )
+        </foreach>
+    </insert>
+</mapper>

@@ -1,0 +1,101 @@
+# 生产环境配置
+# 部署服务器: 49.233.255.243
+# 注意: 所有敏感配置已内嵌，无需外部环境变量
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/rice?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: "z,[aFO2-Z,gkKNA3U4bfDM#%(dsaCs:f<a@^sgD8"
+  
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+    default-property-inclusion: always
+  
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 50MB
+      enabled: true
+
+# Redis 配置
+  redis:
+    open: true
+    database: 2
+    host: localhost
+    port: 6379
+    password: ak876u
+    timeout: 6000ms
+    jedis:
+      pool:
+        max-active: 1000
+        max-wait: -1ms
+        max-idle: 10
+        min-idle: 5
+
+# 文件上传路径
+file:
+  root: /home/hlpt/project/files
+  upload:
+    path: ${file.root}/upload/
+
+# MyBatis 配置 - 生产环境禁用 SQL 日志
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# 日志配置
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"
+  level:
+    com.bjdx.rice.mapper: warn
+    com.bjdx.rice.business.interceptor: info
+    com.bjdx.rice.business.service.vector: info
+    org.apache.ibatis: warn
+
+# 用友接口配置
+yongyou:
+  url: http://47.98.53.78:8503/hengying/masterbill/create
+
+# 向量检索配置（生产环境）
+vector:
+  search:
+    # 生产环境启用向量匹配
+    enabled: true
+    # LCS比率初始阈值（商品搜索使用最长公共子序列算法，0.5区分度最佳）
+    similarity-threshold: 0.5
+    max-results: 3
+    log-matches: true
+  
+  embedding:
+    # 使用本地模型
+    model-type: local
+    local-model:
+      # 使用服务器上的本地模型
+      model-name: /root/models/text2vec-base-chinese
+      dimension: 768
+    api-config:
+      url: ""
+      api-key: ""
+      model: embedding-v1
+  
+  database:
+    type: pgvector
+    pgvector:
+      host: localhost
+      port: 5432
+      database: rice_vector
+      username: rice
+      password: "Rice@2024!"
+    milvus:
+      host: localhost
+      port: 19530
+      collection-prefix: rice
+  
+  sync:
+    # 是否启用启动时自动同步（默认关闭，通过API手动触发）
+    auto-sync-on-startup: false

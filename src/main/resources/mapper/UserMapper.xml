@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.admin.mapper.UserMapper">
+
+    <!-- 查询用户（ -->
+    <select id="findByUsername" resultType="com.bjdx.rice.admin.entity.User">
+        SELECT id, username, password,nickname, phone, email, status, create_time
+        FROM sys_user
+        WHERE username = #{username}
+    </select>
+
+    <!-- 根据用户ID查询角色 -->
+    <select id="findRolesByUserId" resultType="com.bjdx.rice.admin.entity.Role">
+        SELECT r.id, r.role_name, r.description
+        FROM sys_role r
+                 JOIN sys_user_role ur ON r.id = ur.role_id
+        WHERE ur.user_id = #{userId}
+    </select>
+
+    <!-- 根据用户ID查询权限标识（字符串列表） -->
+    <select id="findPermissionsByUserId" resultType="java.lang.String">
+        SELECT DISTINCT p.permission_code
+        FROM sys_permission p
+                 JOIN sys_role_permission rp ON p.id = rp.permission_id
+                 JOIN sys_user_role ur ON rp.role_id = ur.role_id
+        WHERE ur.user_id = #{userId}
+    </select>
+
+    <!-- 删除用户所有角色关联 -->
+    <delete id="deleteRolesByUserId">
+        DELETE FROM sys_user_role WHERE user_id = #{userId}
+    </delete>
+
+    <!-- 插入用户-角色关联 -->
+    <insert id="insertUserRole">
+        INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})
+    </insert>
+
+    <select id="selectAllWithoutPassword" resultType="com.bjdx.rice.admin.entity.User">
+        SELECT id, username, nickname, phone, email, status, create_time
+        FROM sys_user
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="findRoleIdsByUserId" resultType="java.lang.Long">
+        SELECT role_id FROM sys_user_role WHERE user_id = #{userId}
+    </select>
+
+    <select id="listUser" resultType="com.bjdx.rice.admin.dto.UserResDTO">
+        select *
+        from sys_user su
+        where 1 = 1
+        <if test="dto.username != null">
+            and su.username like concat('%',#{dto.username},'%')
+        </if>
+        <if test="dto.nickname != null">
+            and su.nickname like concat('%',#{dto.nickname},'%')
+        </if>
+        <if test="dto.status != null">
+            and su.status = #{dto.status}
+        </if>
+        order by su.create_time desc
+    </select>
+
+    <!-- 查询用户及其角色信息的复合查询 -->
+    <select id="listUserWithRoles" resultMap="UserWithRolesResultMap">
+        select
+        su.id,
+        su.username,
+        su.nickname,
+        su.phone,
+        su.email,
+        su.status,
+        su.create_time,
+        sr.id as role_id,
+        sr.role_name,
+        sr.description
+        from sys_user su
+        left join sys_user_role sur on su.id = sur.user_id
+        left join sys_role sr on sur.role_id = sr.id
+        where 1 = 1
+        <if test="dto.username != null and dto.username != ''">
+            and su.username like concat('%',#{dto.username},'%')
+        </if>
+        <if test="dto.nickname != null and dto.nickname != ''">
+            and su.nickname like concat('%',#{dto.nickname},'%')
+        </if>
+        <if test="dto.status != null and dto.status != ''">
+            and su.status = #{dto.status}
+        </if>
+        <if test="dto.roleId != null">
+            and exists (
+            select 1 from sys_user_role sur2
+            where sur2.user_id = su.id
+            and sur2.role_id = #{dto.roleId}
+            )
+        </if>
+        order by su.create_time desc, sr.id asc
+    </select>
+
+    <resultMap id="UserWithRolesResultMap" type="com.bjdx.rice.admin.dto.UserResDTO">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="nickname" column="nickname"/>
+        <result property="phone" column="phone"/>
+        <result property="email" column="email"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <collection property="roles" ofType="com.bjdx.rice.admin.entity.Role">
+            <id property="id" column="role_id"/>
+            <result property="roleName" column="role_name"/>
+            <result property="description" column="description"/>
+        </collection>
+    </resultMap>
+
+</mapper>

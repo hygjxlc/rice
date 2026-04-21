@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.business.mapper.ProductVectorMapper">
+
+    <resultMap id="ProductVectorResultMap" type="com.bjdx.rice.business.entity.ProductVector">
+        <id property="id" column="id"/>
+        <result property="productName" column="product_name"/>
+        <result property="productCode" column="product_code"/>
+        <result property="specification" column="specification"/>
+        <result property="vector" column="vector" typeHandler="com.bjdx.rice.business.mapper.handler.FloatArrayTypeHandler"/>
+        <result property="metadata" column="metadata"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="upsert" parameterType="com.bjdx.rice.business.entity.ProductVector">
+        INSERT INTO product_vectors (id, product_name, product_code, specification, vector, metadata, created_at, updated_at)
+        VALUES (#{id}, #{productName}, #{productCode}, #{specification}, #{vector, typeHandler=com.bjdx.rice.business.mapper.handler.FloatArrayTypeHandler}, #{metadata}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            product_name = #{productName},
+            product_code = #{productCode},
+            specification = #{specification},
+            vector = #{vector, typeHandler=com.bjdx.rice.business.mapper.handler.FloatArrayTypeHandler},
+            metadata = #{metadata},
+            updated_at = NOW()
+    </insert>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO product_vectors (id, product_name, product_code, specification, vector, metadata, created_at, updated_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.id}, #{item.productName}, #{item.productCode}, #{item.specification}, #{item.vector, typeHandler=com.bjdx.rice.business.mapper.handler.FloatArrayTypeHandler}, #{item.metadata}, NOW(), NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            product_name = VALUES(product_name),
+            product_code = VALUES(product_code),
+            specification = VALUES(specification),
+            vector = VALUES(vector),
+            metadata = VALUES(metadata),
+            updated_at = NOW()
+    </insert>
+
+    <select id="selectById" resultMap="ProductVectorResultMap">
+        SELECT id, product_name, product_code, specification, vector, metadata, created_at, updated_at
+        FROM product_vectors
+        WHERE id = #{id}
+    </select>
+
+    <select id="searchByVector" resultMap="ProductVectorResultMap">
+        SELECT id, product_name, product_code, specification, vector, metadata, created_at, updated_at
+        FROM product_vectors
+        ORDER BY id
+        LIMIT #{topK}
+    </select>
+
+    <select id="searchByVectorWithThreshold" resultMap="ProductVectorResultMap">
+        SELECT id, product_name, product_code, specification, vector, metadata, created_at, updated_at
+        FROM product_vectors
+        LIMIT #{topK}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM product_vectors WHERE id = #{id}
+    </delete>
+
+    <delete id="batchDelete">
+        DELETE FROM product_vectors WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAll">
+        DELETE FROM product_vectors
+    </delete>
+
+    <select id="selectAll" resultMap="ProductVectorResultMap">
+        SELECT id, product_name, product_code, specification, vector, metadata, created_at, updated_at
+        FROM product_vectors
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM product_vectors
+    </select>
+
+</mapper>

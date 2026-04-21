@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.business.mapper.OrderItemsMapper">
+
+
+    <delete id="deleteByOrderId" parameterType="java.lang.Long">
+        delete from order_items where order_id = #{orderId}
+    </delete>
+    <select id="selectByOrderId" resultType="com.bjdx.rice.business.entity.OrderItems" parameterType="java.lang.Long">
+        SELECT * FROM order_items where order_id = #{orderId}
+    </select>
+</mapper>

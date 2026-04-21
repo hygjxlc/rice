@@ -1,0 +1,129 @@
+# Tomcat
+server:
+  port: 48000
+  servlet:
+    context-path: /rice
+  max-http-header-size: 100000
+  tomcat:
+    relaxed-query-chars: ['<','>','[',']','^','`','{','}','|','"','"','=',':',';','(',')','@','+','?','#','/','&','!','*','$','%','~']
+    relaxed-path-chars: ['<','>','[',']','^','`','{','}','|','"','"','=',':',';','(',')','@','+','?','#','/','&','!','*','$','%','~']
+
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.16.41:3306/rice?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456Aa
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+    default-property-inclusion: always
+    main:
+      allow-circular-references: true
+  output:
+    ansi:
+      enabled: always
+
+
+  #    serialization:
+  #      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+      enabled: true
+  mvc:
+    throw-exception-if-no-handler-found: true
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+# Redis（可选，如未使用可删除）
+# redis:
+#   host: localhost
+#   port: 6379
+#   timeout: 2000ms
+
+# MyBatis 配置
+mybatis:
+  # Mapper XML 文件位置
+  mapper-locations: classpath:mapper/*.xml
+  # 实体类别名包
+  type-aliases-package: com.bjdx.rice.entity
+  configuration:
+    # 开启下划线转驼峰（如 order_id → orderId）
+    map-underscore-to-camel-case: true
+    # 日志（开发时可开启，生产建议关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# PageHelper 分页插件配置
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+  support-methods-arguments: true
+  params: count=countSql
+
+# 日志级别（可选）
+logging:
+  file:
+    name: /usr/local/rice/logs/rice.log  # 应用日志目录
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"
+  level:
+    com.bjdx.rice.mapper: debug  # 打印 SQL（开发环境用）
+
+chatmodel:
+  apiKey: sk-b453143602fc46b58e7a13d9bed5a70d
+  url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+  model: qwen-vl-max-latest
+
+app:
+  default-admin:
+    username: admin
+    password: 123456Aa  # 建议复杂密码
+    enabled: true           # 可开关
+
+# 向量检索配置
+vector:
+  search:
+    # 是否启用向量匹配功能（默认关闭，部署时设置为 true）
+    enabled: false
+    # LCS比率阈值（商品搜索使用最长公共子序列算法，0.5区分度最佳）
+    similarity-threshold: 0.5
+    # 最大返回结果数
+    max-results: 3
+    # 是否记录匹配日志
+    log-matches: true
+  
+  embedding:
+    # 向量化服务类型：local(本地模型) / api(外部API)
+    model-type: local
+    # 本地模型配置（model-type=local 时生效）
+    local-model:
+      # 模型名称或路径（生产环境使用本地路径）
+      model-name: ${VECTOR_MODEL_PATH:/root/models/text2vec-base-chinese}
+      # 向量维度（根据模型调整，text2vec-base-chinese 为 768）
+      dimension: 768
+    # API配置（model-type=api 时生效）
+    api-config:
+      url: ${EMBEDDING_API_URL:}
+      api-key: ${EMBEDDING_API_KEY:}
+      model: embedding-v1
+  
+  database:
+    # 向量数据库类型：pgvector / milvus
+    type: pgvector
+    # PGVector 配置
+    pgvector:
+      host: ${PGVECTOR_HOST:localhost}
+      port: ${PGVECTOR_PORT:5432}
+      database: ${PGVECTOR_DB:rice_vector}
+      username: ${PGVECTOR_USER:rice}
+      password: ${PGVECTOR_PASSWORD:}
+    # Milvus 配置（如使用 Milvus）
+    milvus:
+      host: ${MILVUS_HOST:localhost}
+      port: ${MILVUS_PORT:19530}
+      collection-prefix: rice

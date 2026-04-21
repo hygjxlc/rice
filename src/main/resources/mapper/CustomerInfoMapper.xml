@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.business.mapper.CustomerInfoMapper">
+    <!-- CustomerInfoMapper.xml -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO customer_info (
+        unit_code, unit_name, disabled_flag, unit_alias,
+        contact_person, contact_phone, region, address,
+        mobile_phone, remarks, created_at, created_by,
+        updated_at, updated_by
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.unitCode}, #{item.unitName}, #{item.disabledFlag},
+            #{item.unitAlias}, #{item.contactPerson}, #{item.contactPhone},
+            #{item.region}, #{item.address}, #{item.mobilePhone},
+            #{item.remarks}, #{item.createdAt}, #{item.createdBy},
+            #{item.updatedAt}, #{item.updatedBy}
+            )
+        </foreach>
+    </insert>
+    <update id="updateBatch" parameterType="java.util.List">
+        UPDATE customer_info
+        SET
+        unit_name = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.unitName}
+        </foreach>
+        END,
+        disabled_flag = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.disabledFlag}
+        </foreach>
+        END,
+        unit_alias = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.unitAlias}
+        </foreach>
+        END,
+        contact_person = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.contactPerson}
+        </foreach>
+        END,
+        contact_phone = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.contactPhone}
+        </foreach>
+        END,
+        region = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.region}
+        </foreach>
+        END,
+        address = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.address}
+        </foreach>
+        END,
+        mobile_phone = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.mobilePhone}
+        </foreach>
+        END,
+        remarks = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.remarks}
+        </foreach>
+        END,
+        updated_at = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.updatedAt}
+        </foreach>
+        END,
+        updated_by = CASE id
+        <foreach collection="list" item="item">
+            WHEN #{item.id} THEN #{item.updatedBy}
+        </foreach>
+        END
+        WHERE id IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item.id}
+        </foreach>
+    </update>
+
+
+    <select id="selectByUnitCode" parameterType="string" resultType="com.bjdx.rice.business.entity.CustomerInfo">
+        SELECT * FROM customer_info WHERE unit_code = #{unitCode}
+    </select>
+
+
+    <!-- CustomerInfoMapper.xml -->
+    <select id="selectUnitNamesIn" resultType="string">
+        SELECT unit_name FROM customer_info WHERE unit_name IN
+        <foreach collection="names" item="name" open="(" separator="," close=")">
+            #{name}
+        </foreach>
+    </select>
+
+    <select id="selectUnitCodesIn" resultType="string">
+        SELECT unit_code FROM customer_info WHERE unit_code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
+
+    <select id="query" resultType="com.bjdx.rice.business.entity.CustomerInfo">
+            select * from customer_info
+            where 1=1
+            <if test="customer.unitName != null and customer.unitName != ''">
+                and unit_name like concat('%',#{customer.unitName},'%')
+            </if>
+            <if test="customer.contactPerson != null and customer.contactPerson != ''">
+                and contact_person like concat('%',#{customer.contactPerson},'%')
+            </if>
+            <if test="customer.contactPhone != null and customer.contactPhone != ''">
+                and contact_phone like concat('%',#{customer.contactPhone},'%')
+            </if>
+            <if test="customer.startCreatedAt != null and customer.endCreatedAt != null">
+                and created_at between #{customer.startCreatedAt} and #{customer.endCreatedAt}
+            </if>
+            order by created_at desc
+    </select>
+    <select id="selectByUnitName" resultType="com.bjdx.rice.business.entity.CustomerInfo">
+        select * from customer_info where unit_name = #{unitName}
+    </select>
+    <select id="getAllCustomers" resultType="com.bjdx.rice.admin.dto.DropDownDTO">
+        select unit_name as label, id as value from customer_info
+        where unit_name like concat('%',#{name},'%')
+    </select>
+    <select id="getCustomerByName" resultType="com.bjdx.rice.business.entity.CustomerInfo">
+        select * from customer_info
+        where unit_name like concat('%',#{customerName},'%')
+           or unit_alias like concat('%',#{customerName},'%')
+           or contact_person like concat('%',#{customerName},'%')
+        order by
+            case when unit_name like concat('%',#{customerName},'%') then 0
+                 when unit_alias like concat('%',#{customerName},'%') then 1
+                 when contact_person like concat('%',#{customerName},'%') then 2
+                end,
+            created_at desc
+            limit 1
+    </select>
+    <select id="getIdByName" resultType="java.lang.Long">
+        select id from customer_info
+        where unit_name = #{name} OR unit_alias = #{name}
+        order by
+            case when unit_name = #{name} then 0 else 1 end,
+            created_at desc
+            limit 1
+    </select>
+    <select id="selectByUnitNames" parameterType="java.util.List" resultType="com.bjdx.rice.business.entity.CustomerInfo">
+        SELECT * FROM customer_info WHERE unit_name IN
+        <foreach collection="unitNames" item="name" open="(" close=")" separator=",">
+            #{name}
+        </foreach>
+    </select>
+
+</mapper>

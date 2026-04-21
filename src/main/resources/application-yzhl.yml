@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://49.233.255.243:3306/rice?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: z,[aFO2-Z,gkKNA3U4bfDM#%(dsaCs:f<a@^sgD8
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+    default-property-inclusion: always
+    main:
+      allow-circular-references: true
+  output:
+    ansi:
+      enabled: always
+
+yongyou:
+  url: http://47.98.53.78:8503/hengying/masterbill/create

@@ -1,0 +1,66 @@
+spring:
+  profiles:
+    active: test
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/rice_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: test123456
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 50MB
+
+# MyBatis 配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.bjdx.rice.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 日志配置
+logging:
+  level:
+    com.bjdx.rice.mapper: debug
+
+# 测试环境向量配置
+vector:
+  search:
+    enabled: false  # 测试环境默认关闭
+    similarity-threshold: 0.75
+    max-results: 3
+    log-matches: true
+  embedding:
+    model-type: api
+    local-model:
+      model-name: test-model
+      dimension: 768
+    api-config:
+      url: http://test.api/embedding
+      api-key: test-api-key
+      model: test-model
+  database:
+    type: pgvector
+    pgvector:
+      host: localhost
+      port: 5432
+      database: rice_vector_test
+      username: postgres
+      password: test123456
+
+# 测试管理员配置
+app:
+  default-admin:
+    username: admin
+    password: test123456
+    enabled: true
+
+# ChatModel 测试配置
+chatmodel:
+  apiKey: test-api-key
+  url: http://test.api/chat
+  model: test-model

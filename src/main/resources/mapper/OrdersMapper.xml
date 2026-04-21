@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.business.mapper.OrdersMapper">
+    <update id="finishOrder" parameterType="java.lang.Long">
+        update orders
+        set status = '已完成'
+        where id = #{id}
+    </update>
+
+    <update id="updateOrderStatus">
+        update orders
+        set status = #{status}
+        where id = #{id}
+    </update>
+
+
+    <select id="queryOrderList" resultType="com.bjdx.rice.business.dto.order.OrderPageResponse"
+            parameterType="com.bjdx.rice.business.dto.order.OrderPageQueryRequest">
+        SELECT
+        o.id AS id,
+        o.order_no AS orderNo,
+        o.status AS status,
+        o.customer_name AS customerName,
+        o.customer_id AS customerId,
+        o.phone AS phone,
+        o.created_at AS createdAt,
+        o.contacts AS contacts,
+        o.mark AS mark,
+        o.delivery_date AS deliveryDate,
+        o.order_type AS orderType,
+        o.delivery_address AS deliveryAddress,
+        o.order_at AS orderAt
+        FROM orders o
+        WHERE 1=1
+        <if test="request.status != null and request.status != ''">
+            AND o.status = #{request.status}
+        </if>
+        <if test="request.keyword != null and request.keyword != ''">
+            AND (o.order_no LIKE CONCAT('%',#{request.keyword},'%')
+                 or o.customer_name LIKE CONCAT('%',#{request.keyword},'%')
+                 or o.phone LIKE CONCAT('%',#{request.keyword},'%'))
+        </if>
+        <if test="request.startTime != null and request.endTime != null">
+            AND o.created_at BETWEEN #{request.startTime} AND #{request.endTime}
+        </if>
+        <if test="request.customerName != null and request.customerName != ''">
+            AND o.customer_name LIKE CONCAT('%',#{request.customerName},'%')
+        </if>
+        <if test="request.orderNo != null and request.orderNo != ''">
+            AND o.order_no LIKE CONCAT('%',#{request.orderNo},'%')
+        </if>
+        order by o.created_at DESC
+    </select>
+</mapper>

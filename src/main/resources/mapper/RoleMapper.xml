@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bjdx.rice.admin.mapper.RoleMapper">
+
+    <!-- 根据角色ID查询权限 -->
+    <select id="findPermissionsByRoleId" resultType="com.bjdx.rice.admin.entity.Permission">
+        SELECT p.id, p.permission_code, p.permission_name, p.type
+        FROM sys_permission p
+                 JOIN sys_role_permission rp ON p.id = rp.permission_id
+        WHERE rp.role_id = #{roleId}
+    </select>
+    <select id="dropDown" resultType="com.bjdx.rice.admin.dto.DropDownDTO">
+        select id as value, role_name as label
+        from sys_role
+    </select>
+    <select id="selectByRoleName" resultType="com.bjdx.rice.admin.entity.Role">
+        select * from sys_role
+        where 1 = 1
+        <if test="roleName != null and roleName != ''" >
+            and role_name like concat('%', #{roleName}, '%')
+        </if>
+
+    </select>
+
+    <!-- 删除角色所有权限关联 -->
+    <delete id="deletePermissionsByRoleId">
+        DELETE FROM sys_role_permission WHERE role_id = #{roleId}
+    </delete>
+
+    <!-- 插入角色-权限关联 -->
+    <insert id="insertRolePermission">
+        INSERT INTO sys_role_permission (role_id, permission_id) VALUES (#{roleId}, #{permissionId})
+    </insert>
+
+</mapper>
