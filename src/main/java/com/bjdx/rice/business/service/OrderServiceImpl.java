@@ -865,7 +865,7 @@ public class OrderServiceImpl implements OrderService {
         String userQuestionStr = "帮我根据图片内容生成json，按照下面格式生成。public class CreateOrderRequest implements Serializable {\n" +
                 "    private static final long serialVersionUID = 1L;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"客户名称\")\n" +
+                "    @ApiModelProperty(\"客户名称（客户/购货单位/收货单位）\")\n" +
                 "    private String customerName;\n" +
                 "\n" +
                 "    @ApiModelProperty(\"联系人\")\n" +
@@ -874,13 +874,13 @@ public class OrderServiceImpl implements OrderService {
                 "    @ApiModelProperty(\"联系电话\")\n" +
                 "    private String phone;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"配送地址\")\n" +
+                "    @ApiModelProperty(\"配送地址（地址/收货地址）\")\n" +
                 "    private String deliveryAddress;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"计划交期\")\n" +
+                "    @ApiModelProperty(\"计划交期（日期）\")\n" +
                 "    private Date deliveryDate;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"订单备注\")\n" +
+                "    @ApiModelProperty(\"订单备注（备注）\")\n" +
                 "    private String remark;\n" +
                 "\n" +
                 "    @ApiModelProperty(\"订单类型: 电子订单, 手工订单, 微信订单\")\n" +
@@ -891,24 +891,32 @@ public class OrderServiceImpl implements OrderService {
                 "}public class OrderItemDto implements Serializable {\n" +
                 "    private static final long serialVersionUID = 1L;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"商品编号\")\n" +
+                "    @ApiModelProperty(\"商品编号（货号/编号）\")\n" +
                 "    private String productNo;\n" +
                 "\n" +
-                "    @ApiModelProperty(\"商品名称\")\n" +
+                "    @ApiModelProperty(\"商品名称（品名/产品名称/货物名称）\")\n" +
                 "    private String productName;\n" +
                 "    \n" +
-                "    @ApiModelProperty(\"规格（如：5kg/袋）\")\n" +
+                "    @ApiModelProperty(\"规格/型号（如：5kg/袋）\")\n" +
                 "    private String specification;\n" +
                 "    \n" +
-                "    @ApiModelProperty(\"数量\")\n" +
+                "    @ApiModelProperty(\"数量（订货数量/订购数量/采购数量），必填\")\n" +
                 "    private Double quantity;\n" +
                 "    \n" +
-                "    @ApiModelProperty(\"单位（如：袋、件、箱）\")\n" +
+                "    @ApiModelProperty(\"单位（如：袋/件/箱/公斤/升/瓶）\")\n" +
                 "    private String unit;\n" +
                 "    \n" +
-                "    @ApiModelProperty(\"单价（元）\")\n" +
+                "    @ApiModelProperty(\"单价（元）（含税单价/不含税单价）\")\n" +
                 "    private Double unitPrice;\n" +
                 "}\n" +
+                "\n" +
+                "重要提示：\n" +
+                "- 图片中出现的「订货数量」、「订购数量」、「采购数量」、「数量」列，全部对应 quantity 字段\n" +
+                "- 图片中出现的「商品名称」、「品名」、「产品名称」、「货物名称」列，全部对应 productName 字段\n" +
+                "- 图片中出现的「规格/型号」、「规格」列，全部对应 specification 字段\n" +
+                "- 图片中出现的「单位」、「计量单位」列，全部对应 unit 字段\n" +
+                "- 图片中出现的「单价」、「含税单价」、「不含税单价」列，全部对应 unitPrice 字段\n" +
+                "- 图片中出现的「客户名称」、「客户」、「购货单位」、「收货单位」列，全部对应 customerName 字段\n" +
                 "以json的格式返回给我，数量字段必须填充正确的数值，只允许输出json不允许输出其他内容";
         
         long aiStartTime = System.currentTimeMillis();
