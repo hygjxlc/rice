@@ -357,6 +357,9 @@ public class OrderServiceImpl implements OrderService {
         //将json对象转换成实体类
         request = JSONObject.toJavaObject(jsonObject, CreateOrderRequest.class);
         
+        // 后处理：修正AI小数点位丢失问题（如 4.6000 被误识别为 460000）
+        fixMisreadNumbers(request);
+        
         // 通用接口：完全由前端传入的订单类型决定，不再依赖AI识别
         if (StringUtils.isNotBlank(finalOrderType)) {
             request.setOrderType(finalOrderType);
@@ -404,7 +407,7 @@ public class OrderServiceImpl implements OrderService {
                 item.setSpecification(product.getSpecification());
                 item.setUnit(product.getUnit());
 
-                String question = "商品名称是"+item.getProductName()+", 单位是"+item.getUnit()+",规格是"+ item.getSpecification()+"，数量需要多少，只返回数量";
+                String question = "商品名称是"+item.getProductName()+", 单位是"+item.getUnit()+",规格是"+ item.getSpecification()+"，数量需要多少，只返回数字。注意：小数点的识别必须极其谨慎，例如图片中的「4.6000」应该返回4.6，绝不能返回460000";
                 String aiAnswer1 = getAiAnswer(file, question);
                 try {
                     item.setQuantity(Double.valueOf(aiAnswer1));
@@ -560,6 +563,43 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             logger.error("【订单识别】[AI语义匹配] AI调用失败：{}", e.getMessage());
             return -1;
+        }
+    }
+
+    /**
+     * 后处理修正AI小数点位丢失问题
+     * 例如：4.6000 被误识别为 460000，通过尝试除以10的N次方来修正
+     */
+    private void fixMisreadNumbers(CreateOrderRequest request) {
+        if (request == null || request.getItems() == null) return;
+        
+        for (OrderItemDto item : request.getItems()) {
+            // 修正单价：单价超过10000元大概率是小数点丢失
+            if (item.getUnitPrice() != null && item.getUnitPrice() > 10000) {
+                double price = item.getUnitPrice();
+                double original = price;
+                // 尝试除以10、100、1000，找到一个合理的价格
+                while (price > 1000) {
+                    price = price / 10;
+                }
+                if (price != original) {
+                    logger.warn("【订单识别】[数字修正] 单价异常 {} → {}（疑似小数点丢失）", original, price);
+                    item.setUnitPrice(price);
+                }
+            }
+            
+            // 修正数量：数量超过100000大概率是小数点丢失
+            if (item.getQuantity() != null && item.getQuantity() > 100000) {
+                double qty = item.getQuantity();
+                double original = qty;
+                while (qty > 10000) {
+                    qty = qty / 10;
+                }
+                if (qty != original) {
+                    logger.warn("【订单识别】[数字修正] 数量异常 {} → {}（疑似小数点丢失）", original, qty);
+                    item.setQuantity(qty);
+                }
+            }
         }
     }
 
@@ -917,6 +957,13 @@ public class OrderServiceImpl implements OrderService {
                 "- 图片中出现的「单位」、「计量单位」列，全部对应 unit 字段\n" +
                 "- 图片中出现的「单价」、「含税单价」、「不含税单价」列，全部对应 unitPrice 字段\n" +
                 "- 图片中出现的「客户名称」、「客户」、「购货单位」、「收货单位」列，全部对应 customerName 字段\n" +
+                "\n" +
+                "数字精度规则（极其重要）：\n" +
+                "- 小数点的识别必须极其谨慎，小数点（.）是一个很小的点，不要忽略它\n" +
+                "- 例如：图片中的「4.6000」应该识别为 4.6，绝对不能识别为 460000\n" +
+                "- 例如：图片中的「10.80」应该识别为 10.8，绝对不能识别为 1080\n" +
+                "- 例如：图片中的「0.5000」应该识别为 0.5，绝对不能识别为 5000\n" +
+                "- 单价、数量可能包含小数，必须保留小数位，输出为JSON数字类型（不要加引号）\n" +
                 "以json的格式返回给我，数量字段必须填充正确的数值，只允许输出json不允许输出其他内容";
         
         long aiStartTime = System.currentTimeMillis();
@@ -943,6 +990,9 @@ public class OrderServiceImpl implements OrderService {
 
         //将json对象转换成实体类
         request = JSONObject.toJavaObject(jsonObject, CreateOrderRequest.class);
+        
+        // 后处理：修正AI小数点位丢失问题（如 4.6000 被误识别为 460000）
+        fixMisreadNumbers(request);
         
         // 电子单识别接口：完全由前端传入的订单类型决定，不再依赖AI识别
         if (StringUtils.isNotBlank(finalOrderType)) {
