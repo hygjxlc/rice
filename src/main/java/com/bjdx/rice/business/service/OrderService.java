@@ -2,6 +2,7 @@ package com.bjdx.rice.business.service;
 
 import com.bjdx.rice.business.dto.MyPage;
 import com.bjdx.rice.business.dto.order.*;
+import com.bjdx.rice.business.entity.OrderItems;
 import com.bjdx.rice.business.entity.Orders;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +22,8 @@ public interface OrderService {
     void deleteOrder(Long id);
 
     OrderDetailResponse getOrderDetail(Long id);
+
+    List<OrderItems> getOrderItems(Long orderId);
 
     MyPage<OrderPageResponse> queryOrderList(OrderPageQueryRequest request);
 

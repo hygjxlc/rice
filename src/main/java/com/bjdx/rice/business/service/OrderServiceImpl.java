@@ -240,6 +240,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<OrderItems> getOrderItems(Long orderId) {
+        List<OrderItems> items = orderItemsMapper.selectByOrderId(orderId);
+        if (items == null || items.isEmpty()) {
+            throw new MyException("订单明细不存在，orderId=" + orderId);
+        }
+        return items;
+    }
+
+    @Override
     public MyPage<OrderPageResponse> queryOrderList(OrderPageQueryRequest request) {
         MyPage<OrderPageResponse> page = new MyPage<>();
         PageHelper.startPage(request.getPageNum(), request.getPageSize());
@@ -761,20 +770,34 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void syncToYongyou(Long id) {
+        logger.info("【syncToYongyou】接收到按订单ID同步请求，订单ID={}", id);
+
         OrderDetailResponse orderDetail = getOrderDetail(id);
 
         if (orderDetail.getStatus().equals(OrderStatus.待处理.name())) {
+            logger.warn("【syncToYongyou】订单{}状态为待处理，不能同步", id);
             throw new MyException("订单待处理，不能同步");
         }
         if (orderDetail.getStatus().equals(OrderStatus.已完成.name())) {
+            logger.warn("【syncToYongyou】订单{}状态为已完成，不能同步", id);
             throw new MyException("订单已完成，不能同步");
         }
+
+        logger.info("【syncToYongyou】订单详情 - 订单号={}, 客户={}, 状态={}, 商品明细数={}",
+                orderDetail.getOrderNo(), orderDetail.getCustomerName(), orderDetail.getStatus(),
+                orderDetail.getItems() != null ? orderDetail.getItems().size() : 0);
+
         // 转换成用友接口需要的格式
         YongyouSyncRequest yongyouRequest = convertToYongyouFormat(orderDetail);
 
+        // 记录发送到用友系统的完整JSON内容
+        String yongyouRequestJson = JSONObject.toJSONString(yongyouRequest);
+        logger.info("【syncToYongyou】订单{}发送到用友系统的请求JSON: {}", orderDetail.getOrderNo(), yongyouRequestJson);
 
         try {
-            HttpResponseDTO response = HttpUtil.doPost(yongyouUrl, "POST", yongyouRequest, null, null);
+            HttpResponseDTO response = HttpUtil.doPost(yongyouUrl, "POST", yongyouRequest, yongyouHeaders(), null);
+            logger.info("【syncToYongyou】订单{}用友系统响应: HTTP状态码={}, 响应内容={}",
+                    orderDetail.getOrderNo(), response.getHttpCode(), response.getResponseData());
 
             if (response.getHttpCode() == 200) {
                 // 解析返回的JSON数据
@@ -788,15 +811,21 @@ public class OrderServiceImpl implements OrderService {
                 if (Objects.equals(msg,"成功")) {
                     // 返回体格式正确且表示成功，更新订单状态为已结束
                     ordersMapper.finishOrder(id);
+                    logger.info("【syncToYongyou】订单{}同步用友成功，订单状态已更新为已完成", orderDetail.getOrderNo());
                 } else {
-                    // 返回体格式不正确或表示失败
+                    logger.error("【syncToYongyou】订单{}同步用友失败，返回信息: code={}, msg={}", orderDetail.getOrderNo(), code, msg);
                     throw new MyException("同步到用友系统失败，返回信息: code=" + code + ", msg=" + msg);
                 }
             } else {
+                logger.error("【syncToYongyou】订单{}同步用友失败，HTTP状态码: {}, 响应内容: {}",
+                        orderDetail.getOrderNo(), response.getHttpCode(), response.getResponseData());
                 throw new MyException("同步到用友系统失败，HTTP状态码: " + response.getHttpCode() +
                         ", 响应内容: " + response.getResponseData());
             }
+        } catch (MyException e) {
+            throw e;
         } catch (Exception e) {
+            logger.error("【syncToYongyou】订单{}同步用友系统异常: {}", orderDetail.getOrderNo(), e.getMessage(), e);
             throw new MyException("订单 " +orderDetail.getOrderNo()+" 同步到用友系统异常: " + e.getMessage(), e);
         }
     }
@@ -1560,14 +1589,93 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public void syncToYongyou(YongyouSyncRequest request) {
+        logger.info("【syncToYongyou】接收到前端直接发送的同步请求，订单ID={}, supperName={}, remark={}, 明细数={}",
+                request.getOrderId(), request.getSupperName(), request.getRemark(),
+                request.getDetails() != null ? request.getDetails().size() : 0);
+
+        // ② 状态校验：根据订单ID查询订单并校验状态
+        if (request.getOrderId() != null) {
+            Orders order = ordersMapper.selectByPrimaryKey(request.getOrderId());
+            if (order == null) {
+                throw new MyException("订单不存在，订单ID=" + request.getOrderId());
+            }
+            if (OrderStatus.待处理.name().equals(order.getStatus().name())) {
+                throw new MyException("订单待处理，不能同步");
+            }
+            if (OrderStatus.已完成.name().equals(order.getStatus().name())) {
+                throw new MyException("订单已完成，不能同步");
+            }
+            logger.info("【syncToYongyou】订单{}状态校验通过，当前状态={}", order.getOrderNo(), order.getStatus());
+
+            // ③ 将前端发来的订单数据更新到数据库
+            updateOrderFromYongyouRequest(request, order);
+        } else {
+            // orderId为空：前端识别后直接同步，尚未入库，先创建订单记录
+            logger.info("【syncToYongyou】前端未传orderId，创建新订单记录");
+            Orders newOrder = createOrderFromYongyouRequest(request);
+            request.setOrderId(newOrder.getId());
+            logger.info("【syncToYongyou】新订单已创建，订单号={}，订单ID={}", newOrder.getOrderNo(), newOrder.getId());
+        }
+
         // empName 可以使用联系人或默认值
         request.setEmpName("李颖华");
         // storName 使用客户配送地址
         request.setStorName("成品库");
 
+        // ④ 修正 prod_Number：前端AI识别可能给出1,2,3...等伪编号，需要替换为真实用友商品编号
+        if (request.getDetails() != null) {
+            for (YongyouSyncRequest.YongyouDetail detail : request.getDetails()) {
+                Integer prodNumber = detail.getProd_Number();
+                // prod_Number 过小（<=1000）大概率不是真实用友商品编号，从product表查找
+                if (prodNumber == null || prodNumber <= 1000) {
+                    if (StringUtils.isNotBlank(detail.getProd_Name())) {
+                        Product matchedProduct = productMapper.getProductByNameBidirectional(detail.getProd_Name());
+                        if (matchedProduct != null && StringUtils.isNotBlank(matchedProduct.getProductCode())) {
+                            try {
+                                int realCode = Integer.parseInt(matchedProduct.getProductCode());
+                                logger.info("【syncToYongyou】修正prod_Number: '{}' '{}' {}→{}",
+                                        detail.getProd_Name(), matchedProduct.getProductName(), prodNumber, realCode);
+                                detail.setProd_Number(realCode);
+                            } catch (NumberFormatException e) {
+                                // product_code 不是纯数字，用友可能不接受，保留原值
+                                logger.warn("【syncToYongyou】商品'{}'的product_code='{}'非纯数字，无法替换prod_Number",
+                                        detail.getProd_Name(), matchedProduct.getProductCode());
+                            }
+                        } else {
+                            logger.warn("【syncToYongyou】商品'{}'未匹配到真实商品编号，prod_Number={}可能无效",
+                                    detail.getProd_Name(), prodNumber);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ④-2 修正 prod_DW（单位）：用友系统需要标准单位编码，中文单位需映射
+        if (request.getDetails() != null) {
+            for (YongyouSyncRequest.YongyouDetail detail : request.getDetails()) {
+                String dw = detail.getProd_DW();
+                if (StringUtils.isNotBlank(dw)) {
+                    String normalizedDw = normalizeUnit(dw);
+                    if (!dw.equals(normalizedDw)) {
+                        logger.info("【syncToYongyou】修正prod_DW: '{}' '{}' → '{}'",
+                                detail.getProd_Name(), dw, normalizedDw);
+                        detail.setProd_DW(normalizedDw);
+                    }
+                }
+            }
+        }
+
+        // 记录最终发送到用友系统的完整JSON内容
+        String yongyouRequestJson = JSONObject.toJSONString(request);
+        logger.info("【syncToYongyou】最终发送到用友系统的请求JSON: {}", yongyouRequestJson);
+
         try {
-            HttpResponseDTO response = HttpUtil.doPost(yongyouUrl, "POST", request, null, null);
+            // ⑤ HTTP POST到用友系统
+            HttpResponseDTO response = HttpUtil.doPost(yongyouUrl, "POST", request, yongyouHeaders(), null);
+            logger.info("【syncToYongyou】用友系统响应: HTTP状态码={}, 响应内容={}",
+                    response.getHttpCode(), response.getResponseData());
 
             if (response.getHttpCode() == 200) {
                 // 解析返回的JSON数据
@@ -1579,22 +1687,33 @@ public class OrderServiceImpl implements OrderService {
                 String msg = jsonResponse.getString("msg");
 
                 if (!Objects.equals(msg,"成功")) {
-                    // 返回体格式不正确或表示失败
+                    logger.error("【syncToYongyou】同步用友失败，返回信息: code={}, msg={}", code, msg);
                     throw new MyException("同步到用友系统失败，返回信息: code=" + code + ", msg=" + msg);
+                }
+                logger.info("【syncToYongyou】同步用友成功");
+                // 同步成功后更新订单状态为已完成
+                if (request.getOrderId() != null) {
+                    ordersMapper.finishOrder(request.getOrderId());
+                    logger.info("【syncToYongyou】订单ID={}状态已更新为已完成", request.getOrderId());
                 }
                 // 订单同步日志
                 Log log = new Log();
                 log.setType("订单同步");
-                log.setContent(request.toString());
+                log.setContent(yongyouRequestJson);
                 log.setCreateUser(currentUserService.getCurrentNickname());
                 log.setCreateTime(new Date());
                 logMapper.insert(log);
             } else {
+                logger.error("【syncToYongyou】同步用友失败，HTTP状态码: {}, 响应内容: {}",
+                        response.getHttpCode(), response.getResponseData());
                 throw new MyException("同步到用友系统失败，HTTP状态码: " + response.getHttpCode() +
                         ", 响应内容: " + response.getResponseData());
             }
+        } catch (MyException e) {
+            throw e;
         } catch (Exception e) {
-            throw new MyException("订单  同步到用友系统异常: " + e.getMessage(), e);
+            logger.error("【syncToYongyou】同步用友系统异常: {}", e.getMessage(), e);
+            throw new MyException("订单同步到用友系统异常: " + e.getMessage(), e);
         }
     }
 
@@ -1660,6 +1779,187 @@ public class OrderServiceImpl implements OrderService {
         }
         return products;
     }
+    /**
+     * 根据前端发来的用友同步请求数据，更新订单主表和明细到数据库
+     * @param request 前端发来的用友同步请求
+     * @param order 数据库中的订单记录
+     */
+    private void updateOrderFromYongyouRequest(YongyouSyncRequest request, Orders order) {
+        Long orderId = order.getId();
 
+        // 更新订单主表：备注（用友请求中前端可能修改了备注）
+        if (request.getRemark() != null) {
+            order.setRemark(request.getRemark());
+        }
+        // 更新客户名称（supperName 对应客户名称）
+        if (StringUtils.isNotBlank(request.getSupperName())) {
+            order.setCustomerName(request.getSupperName());
+        }
+        order.setUpdatedAt(new Date());
+        ordersMapper.updateByPrimaryKey(order);
+        logger.info("【syncToYongyou】已更新订单主表，订单号={}", order.getOrderNo());
+
+        // 更新订单明细：先删除旧明细，再插入新明细
+        orderItemsMapper.deleteByOrderId(orderId);
+
+        if (request.getDetails() != null && !request.getDetails().isEmpty()) {
+            List<OrderItems> orderItems = new ArrayList<>();
+            for (YongyouSyncRequest.YongyouDetail detail : request.getDetails()) {
+                OrderItems item = new OrderItems();
+                item.setOrderId(orderId);
+                item.setProductName(detail.getProd_Name() != null ? detail.getProd_Name() : ""); // NOT NULL
+                // 根据商品名查找真实product_id，满足外键约束
+                Long productId = resolveProductId(detail.getProd_Name());
+                item.setProductId(productId); // NOT NULL
+                // 保存用友prod_Number到product_no字段
+                item.setProductNo(detail.getProd_Number() != null ? String.valueOf(detail.getProd_Number()) : "");
+                item.setSpecification(""); // 用友接口无规格，设为空字符串满足NOT NULL
+                item.setUnit(detail.getProd_DW() != null ? detail.getProd_DW() : ""); // NOT NULL
+                item.setUnitPrice(detail.getProd_Price() != null ? detail.getProd_Price() : 0.0); // NOT NULL
+                item.setQuantity(1.0); // 用友接口无数量字段，默认1；NOT NULL
+                item.setSubtotal(detail.getProd_Price() != null ? detail.getProd_Price() : 0.0); // NOT NULL
+                item.setCreatedAt(new Date());
+                orderItems.add(item);
+            }
+            orderItemsMapper.insertList(orderItems);
+            logger.info("【syncToYongyou】已更新订单明细，明细数={}", orderItems.size());
+        } else {
+            logger.info("【syncToYongyou】前端未传明细，订单明细已清空");
+        }
+    }
+    /**
+     * 根据前端发来的用友同步请求数据，创建订单记录到数据库（前端识别后直接同步场景）
+     * @param request 前端发来的用友同步请求
+     * @return 创建的订单记录
+     */
+    private Orders createOrderFromYongyouRequest(YongyouSyncRequest request) {
+        Orders order = new Orders();
+
+        // 客户名称（supperName 对应客户名称）
+        order.setCustomerName(request.getSupperName());
+        // 根据客户名称查找真实客户ID，满足外键约束
+        if (StringUtils.isNotBlank(request.getSupperName())) {
+            Long customerId = customerInfoMapper.getIdByName(request.getSupperName());
+            if (customerId != null) {
+                order.setCustomerId(customerId);
+                logger.info("【syncToYongyou】根据客户名'{}'找到客户ID={}", request.getSupperName(), customerId);
+            } else {
+                // 未找到客户，从客户库中取第一个存在的真实客户ID
+                Long fallbackId = getFirstCustomerId();
+                order.setCustomerId(fallbackId);
+                logger.warn("【syncToYongyou】未找到客户'{}'，使用客户库中第一个客户ID={}", request.getSupperName(), fallbackId);
+            }
+        } else {
+            // 无客户名称，从客户库中取第一个存在的真实客户ID
+            Long fallbackId = getFirstCustomerId();
+            order.setCustomerId(fallbackId);
+            logger.warn("【syncToYongyou】无客户名称，使用客户库中第一个客户ID={}", fallbackId);
+        }
+        order.setContacts(""); // 用友请求无联系人，设为空字符串满足NOT NULL约束
+        order.setPhone(""); // 用友请求无电话，设为空字符串
+        order.setDeliveryAddress(""); // 用友请求无配送地址，设为空字符串
+        order.setRemark(request.getRemark());
+        order.setOrderType(OrderType.电子订单); // 用友同步过来的订单属于电子订单
+        order.setStatus(OrderStatus.已确认); // 直接标记为已确认（即将同步到用友）
+        order.setMark(OrderMark.正常);
+        order.setOrderAt(new Date());
+
+        // 生成订单编号
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+        String orderNo = "ORD" + sdf.format(new Date());
+        order.setOrderNo(orderNo);
+
+        order.setCreatedAt(new Date());
+        order.setUpdatedAt(new Date());
+
+        // 保存订单主表
+        ordersMapper.insert(order);
+        logger.info("【syncToYongyou】订单主表已创建，订单号={}，ID={}", order.getOrderNo(), order.getId());
+
+        // 创建订单明细
+        if (request.getDetails() != null && !request.getDetails().isEmpty()) {
+            List<OrderItems> orderItems = new ArrayList<>();
+            for (YongyouSyncRequest.YongyouDetail detail : request.getDetails()) {
+                OrderItems item = new OrderItems();
+                item.setOrderId(order.getId());
+                item.setProductName(detail.getProd_Name() != null ? detail.getProd_Name() : ""); // NOT NULL
+                // 根据商品名查找真实product_id，满足外键约束
+                Long productId = resolveProductId(detail.getProd_Name());
+                item.setProductId(productId); // NOT NULL
+                // 保存用友prod_Number到product_no字段
+                item.setProductNo(detail.getProd_Number() != null ? String.valueOf(detail.getProd_Number()) : "");
+                item.setSpecification(""); // 用友接口无规格，设为空字符串满足NOT NULL
+                item.setUnit(detail.getProd_DW() != null ? detail.getProd_DW() : ""); // NOT NULL
+                item.setUnitPrice(detail.getProd_Price() != null ? detail.getProd_Price() : 0.0); // NOT NULL
+                item.setQuantity(1.0); // 用友接口无数量字段，默认1；NOT NULL
+                item.setSubtotal(detail.getProd_Price() != null ? detail.getProd_Price() : 0.0); // NOT NULL
+                item.setCreatedAt(new Date());
+                orderItems.add(item);
+            }
+            orderItemsMapper.insertList(orderItems);
+            logger.info("【syncToYongyou】订单明细已创建，明细数={}", orderItems.size());
+        }
+
+        return order;
+    }
+
+    /**
+     * 从客户库中获取第一个存在的真实客户ID，用于外键约束兜底
+     * @return 客户ID
+     */
+    private Long getFirstCustomerId() {
+        List<CustomerInfo> customers = customerInfoMapper.query(null);
+        if (customers != null && !customers.isEmpty()) {
+            return customers.get(0).getId();
+        }
+        throw new MyException("客户库中无任何客户记录，请先创建客户");
+    }
+
+    /**
+     * 为order_items.product_id提供外键合法值（仅用于满足数据库外键约束）
+     * 显示商品名称直接使用order_items.product_name字段，不依赖此字段查询product表
+     * 外键策略：尝试按商品名双向模糊匹配，找不到则固定id=1占位商品
+     */
+    private Long resolveProductId(String productName) {
+        if (StringUtils.isNotBlank(productName)) {
+            Product product = productMapper.getProductByNameBidirectional(productName);
+            if (product != null) {
+                return product.getId();
+            }
+        }
+        // 未匹配到商品，固定使用 id=1 占位商品满足外键约束（不影响显示）
+        return 1L;
+    }
+
+    /**
+     * 将中文单位名映射为用友系统识别的标准单位编码
+     * 成功发送的请求使用 "Kg"、"L" 等，而非 "公斤"、"升"
+     */
+    private String normalizeUnit(String unit) {
+        if (unit == null) return unit;
+        switch (unit.trim()) {
+            case "公斤": return "Kg";
+            case "千克": return "Kg";
+            case "克": return "g";
+            case "升": return "L";
+            case "毫升": return "mL";
+            case "件": return "件";
+            case "袋": return "袋";
+            case "箱": return "箱";
+            case "瓶": return "瓶";
+            case "桶": return "桶";
+            case "包": return "包";
+            default: return unit; // 已经是标准编码（如 Kg, KG, L）或其他单位，保持原样
+        }
+    }
+
+    /**
+     * 用友接口认证 Header
+     */
+    private Map<String, String> yongyouHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("token", "hengying2026cjdm");
+        return headers;
+    }
 
 }

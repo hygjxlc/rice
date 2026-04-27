@@ -12,6 +12,9 @@ import java.util.List;
 public class YongyouSyncRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    @ApiModelProperty("订单ID")
+    private Long orderId;
+
     @ApiModelProperty("供应商名称")
     private String supperName;
 

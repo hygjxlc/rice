@@ -10,9 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
@@ -29,8 +27,17 @@ public class AuthController {
     @Autowired
     private UserMapper userMapper;
 
-    @PostMapping("/login")
-    public ResponseObj login(@RequestBody LoginDTO dto) {
+    @RequestMapping(value = "/login", method = {RequestMethod.POST, RequestMethod.GET})
+    public ResponseObj login(
+            @RequestBody(required = false) LoginDTO dto,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String password) {
+        // GET 请求时从 URL 参数读取，POST 请求从 RequestBody 读取
+        if (dto == null) {
+            dto = new LoginDTO();
+            dto.setUsername(username);
+            dto.setPassword(password);
+        }
         // 添加参数验证，防止空值传递给认证管理器
         if (dto == null ||
                 dto.getUsername() == null ||

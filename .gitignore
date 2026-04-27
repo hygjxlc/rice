@@ -43,3 +43,8 @@ scripts/
 
 ### Docs ###
 API文档.md
+
+### Test scripts ###
+test*.py
+BOOT-INF/
+Untitled-*.json

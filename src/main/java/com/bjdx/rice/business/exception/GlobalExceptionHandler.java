@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.ConstraintViolationException;
 
 /**
@@ -31,8 +32,8 @@ public class GlobalExceptionHandler {
      * 请求方式不支持
      */
     @ExceptionHandler({HttpRequestMethodNotSupportedException.class})
-    public ResponseObj handleException(HttpRequestMethodNotSupportedException e) {
-        log.error(e.getMessage(), e);
+    public ResponseObj handleException(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
+        log.error("[405] 请求方法不支持: {} {}, 支持方法: {}", request.getMethod(), request.getRequestURI(), e.getSupportedMethods());
         return ResponseObj.error(ResponseCode.FAIL);
     }
 

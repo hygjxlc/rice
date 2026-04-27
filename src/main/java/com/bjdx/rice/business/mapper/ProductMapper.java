@@ -35,6 +35,12 @@ public interface ProductMapper extends BaseMapper<Product>, MySqlMapper<Product>
     Product getProductByName(String productName);
 
     /**
+     * 双向模糊匹配：商品名包含关键词 或 关键词包含商品名的核心内容
+     * 例：关键词「常金武育粧大米」可匹配到「10kg常金武育粧」
+     */
+    Product getProductByNameBidirectional(String productName);
+
+    /**
      * 根据商品名称子串查询所有匹配商品（LIKE匹配，返回全部结果）
      * 用于第二层商品匹配策略
      */

@@ -62,6 +62,16 @@
         order by created_time desc
         limit 1
     </select>
+    <!-- 双向模糊匹配：商品名包含关键词，或关键词包含商品名的核心内容 -->
+    <select id="getProductByNameBidirectional" resultType="com.bjdx.rice.business.entity.Product">
+        select * from product
+        where product_name like concat('%',#{productName},'%')
+           or #{productName} like concat('%',product_name,'%')
+        order by
+            case when product_name like concat('%',#{productName},'%') then 0 else 1 end,
+            length(product_name) desc
+        limit 1
+    </select>
     <!-- 根据多个商品名称批量查询最新ID -->
     <select id="getIdsByNames" resultType="map">
         SELECT p.id, p.product_name as productName

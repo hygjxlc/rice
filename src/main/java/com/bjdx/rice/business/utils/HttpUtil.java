@@ -38,9 +38,9 @@ public class HttpUtil {
 
         if(requestConfig==null) {
             requestConfig = RequestConfig.custom()
-                    .setSocketTimeout(3000)
-                    .setConnectionRequestTimeout(3000)
-                    .setConnectTimeout(3000)
+                    .setSocketTimeout(30000)
+                    .setConnectionRequestTimeout(10000)
+                    .setConnectTimeout(10000)
                     .build();
         }
 
@@ -113,9 +113,9 @@ public class HttpUtil {
 
         if(requestConfig==null) {
             requestConfig = RequestConfig.custom()
-                    .setSocketTimeout(3000)
-                    .setConnectionRequestTimeout(3000)
-                    .setConnectTimeout(3000)
+                    .setSocketTimeout(30000)
+                    .setConnectionRequestTimeout(10000)
+                    .setConnectTimeout(10000)
                     .build();
         }
         http.setConfig(requestConfig);

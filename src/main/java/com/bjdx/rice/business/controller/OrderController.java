@@ -69,6 +69,17 @@ public class OrderController {
     public ResponseObj queryOrder(@PathVariable("id") Long id) {
         return ResponseObj.success().put(orderService.getOrderDetail(id));
     }
+
+    /**
+     * 订单明细列表（直接读取order_items表，包含原始识别商品名称product_name）
+     */
+    @RequestMapping(value = "/items/{orderId}", method = RequestMethod.GET)
+    @ApiOperation("订单明细列表")
+    public ResponseObj orderItems(@PathVariable("orderId") Long orderId) {
+        logger.info("【OrderController】查询订单明细, orderId={}", orderId);
+        return ResponseObj.success().put(orderService.getOrderItems(orderId));
+    }
+
     /**
      * 订单列表
      */
@@ -94,6 +105,7 @@ public class OrderController {
     @RequestMapping(value = "/syncToYongyou/{id}", method = RequestMethod.GET)
     @ApiOperation("同步到用友")
     public ResponseObj syncToYongyou(@PathVariable Long id) {
+        logger.info("【OrderController】syncToYongyou按ID同步请求，订单ID={}", id);
         orderService.syncToYongyou(id);
         return ResponseObj.success();
     }
@@ -104,6 +116,7 @@ public class OrderController {
     @RequestMapping(value = "/batchSync", method = RequestMethod.POST)
     @ApiOperation("批量同步")
     public ResponseObj batchSync(@RequestBody List<Long> ids) {
+        logger.info("【OrderController】batchSync批量同步请求，订单ID列表={}", ids);
         orderService.batchSync(ids);
         return ResponseObj.success();
     }
@@ -166,6 +179,9 @@ public class OrderController {
     @RequestMapping(value = "/syncToYongyou", method = RequestMethod.POST)
     @ApiOperation("同步用友")
     public ResponseObj syncToYongyou(@RequestBody YongyouSyncRequest request) {
+        logger.info("【OrderController】syncToYongyou前端直接发送同步请求，orderId={}, supperName={}, remark={}, 明细数={}",
+                request.getOrderId(), request.getSupperName(), request.getRemark(),
+                request.getDetails() != null ? request.getDetails().size() : 0);
         orderService.syncToYongyou(request);
         return ResponseObj.success();
     }
